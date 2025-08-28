@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Gestión de Asistencia - Versión Final</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; background-color:#f4f6f8; color:#333; }
+h1 { color:#1e3a8a; }
+button { margin: 5px; padding: 5px 10px; cursor:pointer; background-color:#1e3a8a; color:white; border:none; border-radius:5px; }
+button:hover { background-color:#3b82f6; }
+h2 { margin-top: 30px; color:#1e40af; }
+.tab { display: none; padding: 10px; background-color:#ffffff; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
+.tab.active { display: block; }
+nav { margin-bottom:20px; }
+nav button { background-color:#1e40af; }
+nav button:hover { background-color:#3b82f6; }
+table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+th, td { border:1px solid #ccc; padding: 8px; text-align:left; }
+th { background-color:#1e3a8a; color:white; }
+tr:nth-child(even){background-color:#f2f2f2;}
+textarea { width: 100%; border-radius:5px; padding:5px; border:1px solid #ccc; }
+label { margin-right:10px; }
+</style>
+</head>
+<body>
+
+<h1>Gestión de Asistencia, Stock y Máquinas</h1>
+
+<nav>
+  <button onclick="abrirTab('asistencia')">Asistencia</button>
+  <button onclick="abrirTab('stock')">Stock</button>
+  <button onclick="abrirTab('maquinas')">Máquinas</button>
+  <button onclick="abrirTab('notas')">Blog de Notas</button>
+</nav>
+
+<!-- Asistencia -->
+<div id="asistencia" class="tab active">
+  <h2>Asistencia</h2>
+  <input type="text" id="nuevoTrabajador" placeholder="Nombre trabajador">
+  <button onclick="crearTrabajador()">Crear trabajador</button>
+  <br><br>
+  <select id="selectTrabajador"></select>
+  <input type="date" id="fechaAsistencia">
+  <br>
+  <label><input type="radio" name="tipoAsistencia" value="Presente" checked> Presente</label>
+  <label><input type="radio" name="tipoAsistencia" value="48"> 48</label>
+  <label><input type="radio" name="tipoAsistencia" value="Incapacidad"> Incapacidad</label>
+  <label><input type="radio" name="tipoAsistencia" value="Permiso"> Permiso</label>
+  <label><input type="radio" name="tipoAsistencia" value="Vacaciones"> Vacaciones</label>
+  <br>
+  <button onclick="guardarAsistencia()">Guardar asistencia</button>
+  <button onclick="exportarAsistencia()">Exportar Excel</button>
+  <table id="tablaAsistencia">
+    <thead>
+      <tr><th>Fecha</th><th>Trabajador</th><th>Tipo</th></tr>
+    </thead>
+    <tbody id="listaAsistencia"></tbody>
+  </table>
+</div>
+
+<!-- Stock -->
+<div id="stock" class="tab">
+  <h2>Stock / Equipo entregado</h2>
+  <select id="trabajadorStock"></select>
+  <input type="text" id="item" placeholder="Equipo o material">
+  <button onclick="guardarStock()">Registrar entrega</button>
+  <table>
+    <thead><tr><th>Fecha</th><th>Trabajador</th><th>Item</th></tr></thead>
+    <tbody id="listaStock"></tbody>
+  </table>
+</div>
+
+<!-- Máquinas -->
+<div id="maquinas" class="tab">
+  <h2>Control de Máquinas</h2>
+  <input type="text" id="nuevaMaquina" placeholder="Nombre máquina">
+  <button onclick="crearMaquina()">Crear máquina</button>
+  <br><br>
+  <select id="selectMaquina"></select>
+  <button onclick="marcarEntrada()">Entrada</button>
+  <button onclick="marcarSalida()">Salida</button>
+  <table>
+    <thead><tr><th>Fecha</th><th>Máquina</th><th>Tipo</th></tr></thead>
+    <tbody id="listaMaquinas"></tbody>
+  </table>
+</div>
+
+<!-- Blog de Notas -->
+<div id="notas" class="tab">
+  <h2>Blog de Notas</h2>
+  <textarea id="contenidoNota" rows="5" maxlength="500" placeholder="Escribe aquí tus notas..."></textarea>
+  <br>
+  <button onclick="guardarNota()">Guardar nota</button>
+  <table>
+    <thead><tr><th>Fecha</th><th>Nota</th><th>Acciones</th></tr></thead>
+    <tbody id="listaNotas"></tbody>
+  </table>
+</div>
+
+<script>
+// Funciones de pestañas
+function abrirTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ----- Asistencia -----
+async function cargarTrabajadores() {
+  const res = await fetch('/trabajadores');
+  const data = await res.json();
+  const select = document.getElementById('selectTrabajador');
+  const stockSelect = document.getElementById('trabajadorStock');
+  select.innerHTML = stockSelect.innerHTML = '';
+  data.forEach(t=>{
+    select.innerHTML += `<option value="${t.id}">${t.nombre}</option>`;
+    stockSelect.innerHTML += `<option value="${t.id}">${t.nombre}</option>`;
+  });
+}
+async function crearTrabajador(){
+  const nombre = document.getElementById('nuevoTrabajador').value.trim();
+  if(!nombre) return alert('Ingrese un nombre');
+  await fetch('/trabajadores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre})});
+  document.getElementById('nuevoTrabajador').value='';
+  cargarTrabajadores();
+}
+async function guardarAsistencia(){
+  const trabajador_id = document.getElementById('selectTrabajador').value;
+  const fecha = document.getElementById('fechaAsistencia').value;
+  const tipo_asistencia = document.querySelector('input[name="tipoAsistencia"]:checked').value;
+  if(!fecha) return alert('Seleccione fecha');
+  await fetch('/asistencia',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({trabajador_id, fecha, presente: tipo_asistencia==='Presente', tipo_asistencia})
+  });
+  document.getElementById('fechaAsistencia').value='';
+  cargarAsistencia();
+}
+async function cargarAsistencia(){
+  const res = await fetch('/asistencia');
+  const data = await res.json();
+  const tbody = document.getElementById('listaAsistencia');
+  tbody.innerHTML = '';
+  data.forEach(a=>{
+    tbody.innerHTML += `<tr><td>${a.fecha}</td><td>${a.nombre}</td><td>${a.tipo_asistencia}</td></tr>`;
+  });
+}
+async function exportarAsistencia(){ window.location.href='/exportar-asistencia'; }
+
+// ----- Stock -----
+async function cargarStock() {
+  const res = await fetch('/stock');
+  const data = await res.json();
+  const tbody = document.getElementById('listaStock');
+  tbody.innerHTML = '';
+  data.forEach(s=>tbody.innerHTML += `<tr><td>${s.fecha}</td><td>${s.nombre}</td><td>${s.item}</td></tr>`);
+}
+async function guardarStock() {
+  const trabajador_id = document.getElementById('trabajadorStock').value;
+  const item = document.getElementById('item').value.trim();
+  const fecha = new Date().toISOString().split('T')[0];
+  if(!item) return alert('Ingrese item');
+  await fetch('/guardar-stock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({trabajador_id, item, fecha})});
+  document.getElementById('item').value='';
+  cargarStock();
+}
+
+// ----- Máquinas -----
+async function cargarMaquinas(){
+  const res = await fetch('/maquinas');
+  const data = await res.json();
+  const select = document.getElementById('selectMaquina');
+  select.innerHTML='';
+  data.forEach(m=>select.innerHTML += `<option value="${m.id}">${m.nombre}</option>`);
+}
+async function crearMaquina(){
+  const nombre = document.getElementById('nuevaMaquina').value.trim();
+  if(!nombre) return alert('Ingrese nombre máquina');
+  await fetch('/maquinas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre})});
+  document.getElementById('nuevaMaquina').value='';
+  cargarMaquinas();
+}
+async function marcarEntrada(){ await marcarMaquina('Entrada'); }
+async function marcarSalida(){ await marcarMaquina('Salida'); }
+async function marcarMaquina(tipo){
+  const maquina_id = document.getElementById('selectMaquina').value;
+  const fecha = new Date().toISOString().split('T')[0];
+  await fetch('/control-maquinas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({maquina_id, fecha, tipo})});
+  cargarControlMaquinas();
+}
+async function cargarControlMaquinas(){
+  const res = await fetch('/control-maquinas');
+  const data = await res.json();
+  const tbody = document.getElementById('listaMaquinas');
+  tbody.innerHTML='';
+  data.forEach(m=>tbody.innerHTML += `<tr><td>${m.fecha}</td><td>${m.maquina}</td><td>${m.tipo}</td></tr>`);
+}
+
+// ----- Blog de Notas -----
+async function cargarNotas(){
+  const res = await fetch('/notas');
+  const data = await res.json();
+  const tbody = document.getElementById('listaNotas');
+  tbody.innerHTML='';
+  data.forEach(n=>tbody.innerHTML += `<tr><td>${n.fecha}</td><td>${n.contenido}</td><td><button onclick="borrarNota(${n.id})">Borrar</button></td></tr>`);
+}
+async function guardarNota(){
+  const contenido = document.getElementById('contenidoNota').value.trim();
+  if(!contenido) return alert('Ingrese texto');
+  const fecha = new Date().toISOString().split('T')[0];
+  await fetch('/notas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fecha, contenido})});
+  document.getElementById('contenidoNota').value='';
+  cargarNotas();
+}
+async function borrarNota(id){
+  await fetch(`/notas/${id}`,{method:'DELETE'});
+  cargarNotas();
+}
+
+// --- Inicializar ---
+cargarTrabajadores();
+cargarAsistencia();
+cargarStock();
+cargarMaquinas();
+cargarControlMaquinas();
+cargarNotas();
+</script>
+
+</body>
+</html>
+
